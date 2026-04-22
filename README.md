@@ -10,7 +10,7 @@ An AI-powered caption generator that uses deep learning to describe images and v
 
 | Home Screen | Image Caption | Video Caption |
 |-------------|---------------|---------------|
-| ![Home](assets/screenshots/home.jpg) | ![Image](assets/screenshots/image_caption.jpg) | ![Video](assets/screenshots/video_caption.jpg) |
+| ![Home](assets/screenshots/home.jpeg) | ![Image](assets/screenshots/image_caption.jpeg) | ![Video](assets/screenshots/video_caption.jpeg) |
 
 ---
 
