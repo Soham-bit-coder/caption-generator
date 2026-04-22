@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+env/
+
+# Model weights and checkpoints (too large for GitHub)
+image-captioning/checkpoints/
+caption-api/models/
+
+# HuggingFace cache (BLIP downloads here, ~1GB)
+~/.cache/huggingface/
+
+# Dataset (too large for GitHub)
+data/
+
+# Node / React Native
+caption-app/node_modules/
+caption-app/.expo/
+caption-app/dist/
+
+# OS
+.DS_Store
+Thumbs.db

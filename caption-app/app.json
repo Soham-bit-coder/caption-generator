@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Caption Generator",
+    "slug": "caption-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "permissions": ["READ_EXTERNAL_STORAGE", "CAMERA"]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Caption Generator to access your photos.",
+          "cameraPermission": "Allow Caption Generator to use your camera."
+        }
+      ]
+    ]
+  }
+}
