@@ -1,4 +1,4 @@
-# app.py — Flask API with image and video captioning using BLIP
+# app.py — Flask API with BLIP + Groq LLM for social media captions
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -9,11 +9,18 @@ import os
 import cv2
 import tempfile
 from transformers import BlipProcessor, BlipForConditionalGeneration
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()   # loads GROQ_API_KEY from .env file
 
 app = Flask(__name__)
 CORS(app)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "paste_your_groq_key_here")
+groq_client  = Groq(api_key=GROQ_API_KEY)
 
 # Load BLIP once when server starts
 print("Loading BLIP model...")
@@ -25,12 +32,72 @@ model.eval()
 print("BLIP model ready!")
 
 
+# ---------------------------------------------------------------------------
+# Helper — run BLIP on one PIL image
+# ---------------------------------------------------------------------------
+
 def caption_single_image(pil_image):
-    """Run BLIP on one PIL image and return caption string."""
     inputs = processor(pil_image, return_tensors="pt").to(DEVICE)
     with torch.no_grad():
         out = model.generate(**inputs, max_new_tokens=50)
     return processor.decode(out[0], skip_special_tokens=True)
+
+
+# ---------------------------------------------------------------------------
+# Helper — rewrite plain description as social media caption using Groq LLM
+# ---------------------------------------------------------------------------
+
+def make_social_caption(description, platform="instagram"):
+    print(f"[Groq] platform={platform}, description={description}")
+
+    if platform == "instagram":
+        prompt = f"""You are a creative Instagram influencer.
+I have a photo that shows: "{description}"
+
+Write a catchy Instagram caption for this photo.
+- Use 2-3 short lines
+- Add emojis throughout
+- End with 6-8 relevant hashtags on a new line
+- Make it trendy, fun and engaging
+- Do NOT include any explanation, just the caption itself"""
+
+    elif platform == "twitter":
+        prompt = f"""You are a witty Twitter user.
+I have a photo that shows: "{description}"
+
+Write a tweet for this photo.
+- Keep it under 250 characters
+- Make it punchy and interesting
+- Add 1-2 emojis
+- Add 2-3 hashtags at the end
+- Do NOT include any explanation, just the tweet itself"""
+
+    elif platform == "linkedin":
+        prompt = f"""You are a professional LinkedIn content creator.
+I have a photo that shows: "{description}"
+
+Write a LinkedIn post for this photo.
+- 2-3 professional sentences
+- Thoughtful and inspiring tone
+- No hashtags, no emojis
+- Do NOT include any explanation, just the post itself"""
+
+    else:
+        return description
+
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=250,
+            temperature=0.9,   # higher = more creative
+        )
+        result = response.choices[0].message.content.strip()
+        print(f"[Groq] result={result[:80]}...")
+        return result
+    except Exception as e:
+        print(f"[Groq] error: {e}")
+        return description   # fallback to plain description if Groq fails
 
 
 # ---------------------------------------------------------------------------
@@ -42,10 +109,19 @@ def caption_image():
     if 'image' not in request.files:
         return jsonify({'error': 'No image provided'}), 400
     try:
-        image   = Image.open(io.BytesIO(request.files['image'].read())).convert('RGB')
-        caption = caption_single_image(image)
-        return jsonify({'caption': caption})
+        platform    = request.form.get('platform', 'instagram')
+        print(f"[API] /caption called, platform={platform}")
+
+        image       = Image.open(io.BytesIO(request.files['image'].read())).convert('RGB')
+        description = caption_single_image(image)
+        caption     = make_social_caption(description, platform)
+
+        return jsonify({
+            'caption':     caption,
+            'description': description
+        })
     except Exception as e:
+        print(f"[API] error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -59,55 +135,57 @@ def caption_video():
         return jsonify({'error': 'No video provided'}), 400
 
     try:
-        # Save uploaded video to a temp file (OpenCV needs a file path)
+        platform   = request.form.get('platform', 'instagram')
         video_file = request.files['video']
-        suffix = os.path.splitext(video_file.filename)[-1] or '.mp4'
+        suffix     = os.path.splitext(video_file.filename)[-1] or '.mp4'
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             video_file.save(tmp.name)
             tmp_path = tmp.name
 
-        # Open video with OpenCV
-        cap = cv2.VideoCapture(tmp_path)
-        fps = cap.get(cv2.CAP_PROP_FPS) or 24
+        cap          = cv2.VideoCapture(tmp_path)
+        fps          = cap.get(cv2.CAP_PROP_FPS) or 24
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        interval     = max(1, int(fps * 2))
+        sample_at    = list(range(0, total_frames, interval))[:8]
 
-        # Sample one frame every 2 seconds (max 8 frames to keep it fast)
-        interval   = max(1, int(fps * 2))
-        sample_at  = list(range(0, total_frames, interval))[:8]
-
-        captions = []
+        raw_captions = []
         for frame_idx in sample_at:
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = cap.read()
             if not ret:
                 continue
-            # OpenCV uses BGR, PIL needs RGB
             pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            cap_text  = caption_single_image(pil_image)
-            captions.append(cap_text)
+            raw_captions.append(caption_single_image(pil_image))
 
         cap.release()
-        os.unlink(tmp_path)   # delete temp file
+        os.unlink(tmp_path)
 
-        if not captions:
+        if not raw_captions:
             return jsonify({'error': 'Could not extract frames from video'}), 400
 
-        # Remove duplicate captions and join into one summary
         seen = []
-        for c in captions:
+        for c in raw_captions:
             if c not in seen:
                 seen.append(c)
+        description = ". ".join(seen)
 
-        summary = ". ".join(seen) + "."
-        return jsonify({'caption': summary, 'frames_analyzed': len(captions)})
+        caption = make_social_caption(description, platform)
+
+        return jsonify({
+            'caption':         caption,
+            'description':     description,
+            'frames_analyzed': len(raw_captions)
+        })
 
     except Exception as e:
+        print(f"[API] error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'model': 'BLIP'})
+    return jsonify({'status': 'ok', 'model': 'BLIP + Groq'})
 
 
 if __name__ == '__main__':

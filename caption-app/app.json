@@ -4,11 +4,11 @@
     "slug": "caption-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": false
     },
     "android": {
+      "package": "com.soham.captiongenerator",
       "permissions": ["READ_EXTERNAL_STORAGE", "CAMERA"]
     },
     "plugins": [

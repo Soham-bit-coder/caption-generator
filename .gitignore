@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+*.env
 venv/
 env/
 
@@ -25,3 +26,5 @@ caption-app/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+gsk_3iwPaku86jiovx8WNP38WGdyb3FY7aJDdAkR97BLEjJ4f3mSooqxcomm
