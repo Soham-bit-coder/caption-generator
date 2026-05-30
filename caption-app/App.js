@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 
 // ← Your computer's local IP
-const API_URL = 'http://192.168.29.11:5000';
+const API_URL = 'https://bit-coder-caption-generator.hf.space';
 
 const PLATFORMS = [
   { key: 'instagram', label: '📸 Instagram' },
